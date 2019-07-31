@@ -1,0 +1,4 @@
+rom/
+chip8
+*.o
+*.gch
