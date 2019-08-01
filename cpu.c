@@ -1,6 +1,8 @@
 #include "cpu.h"
 #include "stack.h"
 #include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
 
 unsigned char chip8_fontset[FONTSET_SIZE] =
 { 
@@ -33,12 +35,15 @@ void init(){
         mem[i] = 0;
     for(int i = 0;i<SCREEN_SIZE;i++)
         graph[i]  = 0;
+    draw_flag = 0; 
     for(int i = 0;i<FONTSET_SIZE;i++)
         mem[i] = chip8_fontset[i];
     for(int i = 0;i<REG_NUMBER;i++)
         V[i] = 0;
     
     init_stack(STACK_SIZE);
+
+    srand(time(NULL));
 }
 
 void load_game(char *filename)
@@ -234,6 +239,126 @@ void one_cycle()
             break;
         
         case 0xC000: //CXNN Sets Vx to the res of a bitwise AND operation on a rand number (0 - 255) and NN
+            V[(opcode & 0x0F00) >> 8] = (rand()%255) & (opcode & 0x00FF);
             break;
+        
+
+        //DXYN Draws a sprite at coordinate (Vx,Vy) that has a width of 8 pixels and height of N pixels. Each row of 8 pixels is read as bit-coded starting from mem Idx;
+        // Vf is set to 1 if any screen pixels are flipped from set to unset, 0 if not
+        case 0xD000:; // ; to avoid "label can only be follow by a statement, declaration is not a statement" https://tinyurl.com/y6n3nswe
+            unsigned short x = V[(opcode & 0x0F00) >> 8];
+            unsigned short y = V[(opcode & 0x00F0) >> 4];
+            unsigned short h = opcode & 0x000F;
+            unsigned short p;
+            V[0xF] = 0;
+
+            for(int i = 0;i < h;i++)
+            {
+                p = mem[Idx + i];
+                for(int j = 0; j < 8;j++)
+                {
+                    if((p & (0x80>>j)) != 0)
+                    {
+                        if(graph[(x + i +((y+j)*64))] == 1)
+                            V[0xF] = 1;
+                        graph[x + i +((y+j)*64)] ^=1;
+                    }
+                }
+            }
+            draw_flag = 1;
+            inc_pc(2);
+            break;
+        
+        case 0xE000:
+            switch (opcode & 0x000F)
+            {
+                case 0x000E: // EX9E skips the next instr if key stored in Vx is pressed
+                    if(key[V[(opcode & 0x0F00)>>8]])
+                        inc_pc(4);
+                    else 
+                        inc_pc(2);
+                    break;
+
+                case 0x0001: // EXA1 skips the next instr if key stored in Vx is not pressed
+                    if(key[V[(opcode & 0x0F00)>>8]])
+                        inc_pc(2);
+                    else 
+                        inc_pc(4);
+                    break;
+
+                default:
+                    fprintf(stderr,"Wrong opcode %X\n",opcode);
+                    break;
+            }
+        break;
+
+        case 0xF000:
+            switch (opcode & 0x00FF)
+            {
+                case 0x0007: // FX07 Sets Vx to the value of the delay timer
+                    V[(opcode & 0x0F00)>>8] = delay_timer ;
+                    inc_pc(2);
+                    break;
+            
+                case 0x000A: // FX0A  A key pressed is awaited and then stored in Vx, blocking operation. All operation halted until next key event
+                    for(int i = 0;i < NB_KEY;i++)
+                        if(key[i]) 
+                        {
+                            V[(opcode & 0x0F00)>>8] = i;
+                            inc_pc(2);
+                        }
+                    
+                    break;
+
+                case 0x0015: // FX15 Sets the delay timer to Vx    
+                    delay_timer = V[(opcode & 0x0F00)>>8];
+                    inc_pc(2);
+                    break;
+                
+                case 0x0018: // FX18 Set the sound time to Vx
+                    sound_timer = V[(opcode & 0x0F00)>>8];
+                    inc_pc(2);
+                    break;
+                
+                case 0x001E: // FX1E Adds Vx to Idx >> undocumented but Vf is set to 1 if range overflow (I+Vx>0xFFF) and 0 when there isn't
+                    if(Idx + V[(opcode & 0x0F00)>>8] > 0xFFF)
+                        V[0xF] = 1;
+                    else
+                        V[0xF] = 0;
+                    Idx += V[(opcode & 0x0F00)>>8];
+                    inc_pc(2);
+                    break;
+                
+                case 0x0029: // FX229 Sets Idx to the location of the sprite for the char in Vx. Char 0-F are rep by 4x5 font
+                    Idx =  V[(opcode & 0x0F00)>>8] * 5;
+                    inc_pc(2);
+                    break;
+                
+                case 0x00033: // FX33 store the binary-coded decimal representation of VX, with the most significant of three digits at addr Idx, middle digit Idx+1 and least Idx +2 
+                    mem[Idx]      =  V[(opcode & 0x0F00)>>8] / 100; 
+                    mem[Idx + 1]  = (V[(opcode & 0x0F00)>>8] / 10) % 10;
+                    mem[Idx + 2]  = (V[(opcode & 0x0F00)>>8] / 100) % 10;
+                    inc_pc(2);
+                    break;
+                
+                case 0x0055: // FX33 stores V0 up to Vx(included) in mem starting at addr Idx, offset is inc by 1, Idx shall remain the same
+                    for(int i = 0;i <= V[(opcode & 0x0F00)>>8];i++)
+                        mem[Idx + i] = V[i];
+                    inc_pc(2);
+                    break;
+                
+                case 0x0065 : //FX65 fills V0 up to Vx(included) with mem starting at Idx offset is inc by 1, Idx shall remain the same
+                    for(int i = 0;i <= V[(opcode & 0x0F00)>>8];i++)
+                        V[i] = mem[Idx + i]; 
+                    inc_pc(2);
+                    break;
+                default:
+                    fprintf(stderr,"Wrong opcode %X\n",opcode);
+                    break;
+            }
+            break;
+            default : 
+                fprintf(stderr,"Wrong opcode %X\n",opcode); 
+                break;
     }
 }

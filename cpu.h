@@ -18,6 +18,7 @@ unsigned short Idx;
 unsigned short pc;
 
 unsigned char graph[SCREEN_SIZE];
+unsigned int draw_flag;
 
 unsigned char delay_timer;
 unsigned char sound_timer;
