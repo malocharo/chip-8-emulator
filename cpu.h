@@ -3,7 +3,9 @@
 
 #define MEM_SIZE 4096
 #define REG_NUMBER 16
-#define SCREEN_SIZE 64*32
+#define SCREEN_HEIGHT 32
+#define SCREEN_WIDTH 64
+
 #define NB_KEY 16
 #define STACK_SIZE 16
 #define FONTSET_SIZE 80
@@ -17,13 +19,14 @@ unsigned char V[REG_NUMBER];
 unsigned short Idx;
 unsigned short pc;
 
-unsigned char graph[SCREEN_SIZE];
+unsigned char graph[SCREEN_HEIGHT * SCREEN_WIDTH];
 unsigned int draw_flag;
 
 unsigned char delay_timer;
 unsigned char sound_timer;
 
 unsigned char key[NB_KEY];
+int           key_pressed;
 
 
 void init();

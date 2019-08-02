@@ -1,17 +1,15 @@
-CC=gcc
-CFLAGS = -Wall
+OBJS = main.c cpu.c stack.c display.c
 
-chip8: main.o stack.o cpu.o
-	$(CC) -o chip8 main.o stack.o cpu.o
+CC = gcc
 
-main.o: main.c cpu.h
-	$(CC) $(CFLAGS) -c main.c 
+COMPILER_FLAG = -Wall
 
-stack.o: stack.c 
-	$(CC) $(CFLAGS) -c stack.c stack.h
+LINKER_FLAG = -lSDL2
 
-cpu.o: cpu.c 
-	$(CC) $(CFLAGS) -c cpu.c cpu.h
+OBJ_NAME = chip8
+
+all: $(OBJS)
+	$(CC) $(OBJS) $(COMPILER_FLAG) $(LINKER_FLAG) -o $(OBJ_NAME)
 
 clean:
 	rm *.o *.gch

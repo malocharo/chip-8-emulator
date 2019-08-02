@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <time.h>
 
+
 unsigned char chip8_fontset[FONTSET_SIZE] =
 { 
   0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
@@ -33,13 +34,15 @@ void init(){
 
     for(int i = 0;i<MEM_SIZE;i++)
         mem[i] = 0;
-    for(int i = 0;i<SCREEN_SIZE;i++)
+    for(int i = 0;i<SCREEN_HEIGHT * SCREEN_WIDTH;i++)
         graph[i]  = 0;
     draw_flag = 0; 
     for(int i = 0;i<FONTSET_SIZE;i++)
         mem[i] = chip8_fontset[i];
     for(int i = 0;i<REG_NUMBER;i++)
         V[i] = 0;
+    for(int i = 0;i<NB_KEY;i++)
+        key[i] = 0;
     
     init_stack(STACK_SIZE);
 
@@ -62,7 +65,7 @@ void load_game(char *filename)
 
     if(size_file > MEM_SIZE - PROG_START) 
     {
-        fprintf(stderr,"Mem too short: %i",size_file);
+        fprintf(stderr,"Mem too short: %i\n",size_file);
         exit(-1);
     }
 
@@ -88,7 +91,7 @@ void dump_mem(char * filename)
     FILE *f = fopen(filename,"wb");
     if(f == NULL)
     {
-        fprintf(stderr,"Error while dumping mem in %s",filename);
+        fprintf(stderr,"Error while dumping mem in %s\n",filename);
         return;
     }
     fwrite(mem,1,MEM_SIZE,f);
@@ -98,14 +101,14 @@ void dump_mem(char * filename)
 void one_cycle()
 {
     opcode = mem[pc] << 8 | mem[pc+1];
-    fprintf(stderr,"opcode %0X",opcode);
+    fprintf(stderr,"opcode %0X at addr %X\n",opcode,(pc<<8) | (pc+1));
     switch(opcode & 0xF000)
     {
         case 0x0000: //0XXX
             switch (opcode & 0x000F)
             {
                 case 0x0000: //00E0 : Clears the screen
-                    for(int i = 0;i<SCREEN_SIZE;i++)
+                    for(int i = 0;i<SCREEN_HEIGHT * SCREEN_WIDTH;i++)
                         graph[i] = 0;
                     break;
                 case 0x000E: //00EE returns from a subroutine
@@ -301,10 +304,12 @@ void one_cycle()
                     break;
             
                 case 0x000A: // FX0A  A key pressed is awaited and then stored in Vx, blocking operation. All operation halted until next key event
+                    key_pressed = 0;
                     for(int i = 0;i < NB_KEY;i++)
                         if(key[i]) 
                         {
                             V[(opcode & 0x0F00)>>8] = i;
+                            key_pressed = 1;
                             inc_pc(2);
                         }
                     
